@@ -128,7 +128,7 @@ download size may be several hundred megabytes. Ensure you have a stable interne
 
 Alternatively run the following command if the above command failed for whatever reason:
 
-    pip install django torch numpy opencv-python-headless requests python-dotenv sympy yt-dlp
+    pip install django torch numpy opencv-python-headless requests python-dotenv sympy yt-dlp django-cors-headers
 
 
 **Step 4 — Apply database migrations**
