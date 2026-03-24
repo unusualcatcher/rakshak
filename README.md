@@ -54,7 +54,7 @@ There are two notebooks in that repository:
 - Accident detection model server
 - Fire and smoke detection model server
 
-Each notebook starts a Flask server that exposes a /detect endpoint, and uses ngrok to tunnel
+Each notebook starts a server that exposes a /detect endpoint, and uses ngrok to tunnel
 it to a public HTTPS URL. You must copy those two URLs into your .env file (described in
 Section 5).
 
