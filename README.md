@@ -45,7 +45,7 @@ Before running Rakshak, ensure you have the following ready.
 **Model server notebooks**
 
 Both model servers must be running and publicly exposed before starting Rakshak. The notebooks
-are hosted at:
+are available at:
 
     https://github.com/unusualcatcher/models_servers
 
