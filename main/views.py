@@ -150,15 +150,14 @@ def create_incident(request):
         longitude     = request.POST.get("longitude",     "").strip()
         incident_type = request.POST.get("incident_type", "").strip()
         description   = request.POST.get("description",   "").strip()
+        date_created  = request.POST.get("date_created",  "").strip()
 
-       
-        if not latitude or not longitude or not incident_type:
+        if not latitude or not longitude or not incident_type or not date_created:
             return JsonResponse({
                 "success": False,
-                "error":   "latitude, longitude and incident_type are all required."
+                "error":   "latitude, longitude, incident_type and date_created are all required."
             }, status=400)
 
-       
         try:
             latitude  = float(latitude)
             longitude = float(longitude)
@@ -168,7 +167,6 @@ def create_incident(request):
                 "error":   "latitude and longitude must be valid numbers."
             }, status=400)
 
-       
         if not (-90 <= latitude <= 90):
             return JsonResponse({
                 "success": False,
@@ -181,12 +179,12 @@ def create_incident(request):
                 "error":   "longitude must be between -180 and 180."
             }, status=400)
 
-       
         incident = Incident.objects.create(
             latitude      = latitude,
             longitude     = longitude,
             incident_type = incident_type,
-            description   = description or None   # triggers the auto-default in save()
+            description   = description or None,
+            date_created  = date_created
         )
 
         return JsonResponse({
@@ -197,7 +195,8 @@ def create_incident(request):
                 "latitude":      str(incident.latitude),
                 "longitude":     str(incident.longitude),
                 "incident_type": incident.incident_type,
-                "description":   incident.description
+                "description":   incident.description,
+                "date_created":  str(incident.date_created)
             }
         }, status=201)
 
@@ -329,6 +328,7 @@ def incidents_within_radius(request):
                     "longitude":     str(incident.longitude),
                     "incident_type": incident.incident_type,
                     "description":   incident.description,
+                    "date_created":  str(incident.date_created),
                 }
                 for incident in incidents
             ]
