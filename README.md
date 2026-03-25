@@ -190,10 +190,12 @@ record is updated in place with the new incident type, timestamp, and footage pa
 
 **Step 2 — Create a virtual environment**
 
-    python -m venv venv
+    python -m venv venv 
+    # the first "venv" is part of the command, the second "venv" is simply the name of the folder which can be anything like "venvpath".
 
 Activate it:
 
+    # "venv" here means the name of the folder containing your virtual environment
     # Linux / macOS
     source venv/bin/activate
 
@@ -220,7 +222,7 @@ This creates the local SQLite database (db.sqlite3) with all required tables.
 
 **Step 1 — Open the notebooks**
 
-Go to https://github.com/unusualcatcher/models_servers and open each notebook in Google Colab.
+Go to https://github.com/unusualcatcher/model_servers and open each notebook in Google Colab.
 
 **Step 2 — Set up ngrok authtokens**
 
