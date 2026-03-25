@@ -11,5 +11,9 @@ urlpatterns = [
     path("incident/delete-all/", views.delete_all_incidents, name="delete_all_incidents"),
     path("incident/create/",      views.create_incident,      name="create_incident"),
     path("incident/within-radius/", views.incidents_within_radius, name="incidents_within_radius"),
+    path("delete-by-coordinates/", views.delete_by_coordinates, name="delete_by_coordinates"),
+    path('clean-database/', views.delete_all_data, name='clean_database'),
+    path('delete-all-camera-incidents/', views.delete_all_camera_incidents, name='delete_all_camera_incidents'),
     
+
 ]

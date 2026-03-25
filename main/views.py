@@ -1,9 +1,11 @@
 from django.shortcuts import render
+from decimal import Decimal, InvalidOperation
 from django.http import JsonResponse, StreamingHttpResponse
 from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.csrf import csrf_exempt
 from .streams import generate_stream_detections, generate_multi_camera_stream
-from .models import Camera, Incident
+from django.db import transaction
+from .models import Camera, Incident, Camera_Incident
 import math
 import os
 
@@ -35,6 +37,7 @@ def stream_detect(request):
 @require_GET
 def stream_all_cameras(request):
     time_quantum = int(request.GET.get("tq", TIME_QUANTUM))
+    live         = request.GET.get("live", "true").lower() == "true"
 
     cameras = [
         {
@@ -43,14 +46,15 @@ def stream_all_cameras(request):
             "longitude": str(cam.longitude),
             "url":       cam.live_feed_url
         }
-        for cam in Camera.objects.all()
+        for cam in Camera.objects.filter(live=live)
     ]
 
     gen = generate_multi_camera_stream(
         cameras            = cameras,
         accident_model_url = ACCIDENT_MODEL_URL,
         fire_model_url     = FIRE_MODEL_URL,
-        time_quantum       = time_quantum
+        time_quantum       = time_quantum,
+        live               = live
     )
 
     return StreamingHttpResponse(gen, content_type="application/x-ndjson")
@@ -63,6 +67,7 @@ def create_camera(request):
         latitude      = request.POST.get("latitude",      "").strip()
         longitude     = request.POST.get("longitude",     "").strip()
         live_feed_url = request.POST.get("live_feed_url", "").strip()
+        live_raw      = request.POST.get("live",          "").strip().lower()
 
         if not latitude or not longitude or not live_feed_url:
             return JsonResponse({
@@ -91,6 +96,16 @@ def create_camera(request):
                 "error":   "longitude must be between -180 and 180."
             }, status=400)
 
+        if live_raw in ("", "true", "1"):
+            live = True
+        elif live_raw in ("false", "0"):
+            live = False
+        else:
+            return JsonResponse({
+                "success": False,
+                "error":   "live must be true or false."
+            }, status=400)
+
         if Camera.objects.filter(live_feed_url=live_feed_url).exists():
             return JsonResponse({
                 "success": False,
@@ -106,7 +121,8 @@ def create_camera(request):
         camera = Camera.objects.create(
             latitude      = latitude,
             longitude     = longitude,
-            live_feed_url = live_feed_url
+            live_feed_url = live_feed_url,
+            live          = live
         )
 
         return JsonResponse({
@@ -116,7 +132,8 @@ def create_camera(request):
                 "id":            camera.id,
                 "latitude":      str(camera.latitude),
                 "longitude":     str(camera.longitude),
-                "live_feed_url": camera.live_feed_url
+                "live_feed_url": camera.live_feed_url,
+                "live":          camera.live
             }
         }, status=201)
 
@@ -126,13 +143,13 @@ def create_camera(request):
             "error":   f"An unexpected error occurred: {str(e)}"
         }, status=500)
 
-
 def test(request):
     return render(request, "main/temp.html")
 
 
 def dashboard(request):
     return render(request, "main/dashboard.html")
+
 
 @require_GET
 def delete_all_cameras(request):
@@ -141,6 +158,7 @@ def delete_all_cameras(request):
         "success": True,
         "message": f"Deleted {count} camera(s) from the database."
     })
+
 
 @csrf_exempt
 @require_POST
@@ -206,26 +224,17 @@ def create_incident(request):
             "error":   f"An unexpected error occurred: {str(e)}"
         }, status=500)
 
+
 @require_GET
 def delete_all_incidents(request):
     count, _ = Incident.objects.all().delete()
     return JsonResponse({
         "success": True,
-        "message": f"Deleted {count} camera(s) from the database."
+        "message": f"Deleted {count} incident(s) from the database."
     })
 
+
 def get_incidents_within_radius(latitude: float, longitude: float, distance_km: float):
-    """
-    Returns all Incident objects within `distance_km` kilometres of the
-    given (latitude, longitude) point.
-
-    Two-stage approach:
-      1. Bounding-box query  — cheap DB-level pre-filter (square).
-      2. Haversine check     — precise Python-level post-filter (circle).
-    """
-
-    # ── Stage 1: Bounding box ──────────────────────────────────────────────
-    # Degrees of lat/lon that correspond to `distance_km` from the target point.
     lat_delta = distance_km / 111.32
     lon_delta = distance_km / (111.32 * math.cos(math.radians(latitude)))
 
@@ -241,32 +250,24 @@ def get_incidents_within_radius(latitude: float, longitude: float, distance_km: 
         longitude__lte = max_lon,
     )
 
-    # ── Stage 2: Haversine filter ──────────────────────────────────────────
     EARTH_RADIUS_KM = 6371.0
 
     def haversine(lat1, lon1, lat2, lon2) -> float:
-        """Returns the great-circle distance in km between two coordinate pairs."""
         lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
-
         dlat = lat2 - lat1
         dlon = lon2 - lon1
-
         a = (math.sin(dlat / 2) ** 2
              + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2)
-
         return EARTH_RADIUS_KM * 2 * math.asin(math.sqrt(a))
 
-    results = [
+    return [
         incident for incident in candidates
         if haversine(
-            latitude,
-            longitude,
-            float(incident.latitude),
-            float(incident.longitude)
+            latitude, longitude,
+            float(incident.latitude), float(incident.longitude)
         ) <= distance_km
     ]
 
-    return results
 
 @csrf_exempt
 @require_GET
@@ -276,14 +277,12 @@ def incidents_within_radius(request):
         longitude   = request.GET.get("longitude",   "").strip()
         distance_km = request.GET.get("distance_km", "").strip()
 
-        
         if not latitude or not longitude or not distance_km:
             return JsonResponse({
                 "success": False,
                 "error":   "latitude, longitude and distance_km are all required."
             }, status=400)
 
-        
         try:
             latitude    = float(latitude)
             longitude   = float(longitude)
@@ -294,7 +293,6 @@ def incidents_within_radius(request):
                 "error":   "latitude, longitude and distance_km must all be valid numbers."
             }, status=400)
 
-        
         if not (-90 <= latitude <= 90):
             return JsonResponse({
                 "success": False,
@@ -313,7 +311,6 @@ def incidents_within_radius(request):
                 "error":   "distance_km must be a positive number."
             }, status=400)
 
-       
         incidents = get_incidents_within_radius(latitude, longitude, distance_km)
 
         return JsonResponse({
@@ -338,4 +335,135 @@ def incidents_within_radius(request):
         return JsonResponse({
             "success": False,
             "error":   f"An unexpected error occurred: {str(e)}"
+        }, status=500)
+
+
+@csrf_exempt
+@require_POST
+def delete_by_coordinates(request):
+    latitude_raw  = request.POST.get("latitude",  "").strip()
+    longitude_raw = request.POST.get("longitude", "").strip()
+    to_delete     = request.POST.get("to_delete", "").strip().lower()
+
+    if not latitude_raw or not longitude_raw or not to_delete:
+        return JsonResponse({
+            "success": False,
+            "error":   "latitude, longitude and to_delete are all required."
+        }, status=400)
+
+    try:
+        latitude  = Decimal(latitude_raw)
+        longitude = Decimal(longitude_raw)
+    except (InvalidOperation, TypeError):
+        return JsonResponse({
+            "success": False,
+            "error":   "latitude and longitude must be valid decimal numbers."
+        }, status=400)
+
+    if latitude < Decimal("-90") or latitude > Decimal("90"):
+        return JsonResponse({
+            "success": False,
+            "error":   "latitude must be between -90 and 90."
+        }, status=400)
+
+    if longitude < Decimal("-180") or longitude > Decimal("180"):
+        return JsonResponse({
+            "success": False,
+            "error":   "longitude must be between -180 and 180."
+        }, status=400)
+
+    if max(0, -latitude.as_tuple().exponent) > 6 or max(0, -longitude.as_tuple().exponent) > 6:
+        return JsonResponse({
+            "success": False,
+            "error":   "latitude and longitude must not have more than 6 decimal places."
+        }, status=400)
+
+    try:
+        with transaction.atomic():
+            if to_delete == "camera":
+                obj        = Camera.objects.filter(latitude=latitude, longitude=longitude).first()
+                model_name = "Camera"
+            elif to_delete == "incident":
+                obj        = Incident.objects.filter(latitude=latitude, longitude=longitude).first()
+                model_name = "Incident"
+            elif to_delete in {"camera_incident", "camera-incident", "camera incident"}:
+                obj        = Camera_Incident.objects.filter(
+                                 camera__latitude=latitude,
+                                 camera__longitude=longitude
+                             ).first()
+                model_name = "Camera_Incident"
+            else:
+                return JsonResponse({
+                    "success": False,
+                    "error":   "to_delete must be one of: camera, incident, camera_incident."
+                }, status=400)
+
+            if not obj:
+                return JsonResponse({
+                    "success": False,
+                    "message": f"No matching {model_name} record found for the given coordinates."
+                }, status=404)
+
+            deleted_id = obj.id
+            obj.delete()
+
+        return JsonResponse({
+            "success": True,
+            "message": f"{model_name} record deleted successfully.",
+            "deleted": {
+                "id":        deleted_id,
+                "model":     model_name,
+                "latitude":  str(latitude),
+                "longitude": str(longitude)
+            }
+        }, status=200)
+
+    except Exception as e:
+        return JsonResponse({
+            "success": False,
+            "error":   f"An unexpected error occurred: {str(e)}"
+        }, status=500)
+    
+@csrf_exempt
+@require_POST
+def delete_all_data(request): # DELETE DURING PRODUCTION
+    try:
+        with transaction.atomic():
+            camera_incident_count, _ = Camera_Incident.objects.all().delete()
+            incident_count, _        = Incident.objects.all().delete()
+            camera_count, _          = Camera.objects.all().delete()
+
+        return JsonResponse({
+            "success": True,
+            "message": "All data deleted successfully.",
+            "deleted_counts": {
+                "camera_incidents": camera_incident_count,
+                "incidents": incident_count,
+                "cameras": camera_count
+            }
+        }, status=200)
+
+    except Exception as e:
+        return JsonResponse({
+            "success": False,
+            "error": f"An unexpected error occurred: {str(e)}"
+        }, status=500)
+    
+@csrf_exempt
+@require_POST
+def delete_all_camera_incidents(request):
+    try:
+        with transaction.atomic():
+            count, _ = Camera_Incident.objects.all().delete()
+
+        return JsonResponse({
+            "success": True,
+            "message": f"Deleted {count} camera incident(s).",
+            "deleted_count": count
+        }, status=200)
+
+    except Exception as e:
+        return JsonResponse({
+            "success": False,
+            "error": f"An unexpected error occurred: {str(e)}"
         }, status=500)
