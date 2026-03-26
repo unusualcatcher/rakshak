@@ -21,6 +21,7 @@ and an incident analytics API. A live multi-camera dashboard is included out of 
    - Multi-Camera Stream
    - Camera Management
    - Incident Management
+   - Retrieval Endpoints
    - Utility Endpoints
 
 ---
@@ -57,37 +58,36 @@ file accordingly and restart the Django server.
 ---
 
 ## 2. Project Structure
-```
-rakshak/
-├── main/
-│   ├── migrations/
-│   │   ├── 0001_initial.py
-│   │   └── 0002_incident.py
-│   ├── templates/
-│   │   └── main/
-│   │       ├── dashboard.html       # Multi-camera live dashboard
-│   │       └── temp.html            # Single-stream test UI
-│   ├── __init__.py
-│   ├── admin.py
-│   ├── apps.py
-│   ├── models.py
-│   ├── streams.py                   # Core streaming and detection logic
-│   ├── tests.py
-│   ├── urls.py
-│   └── views.py
-├── rakshak/
-│   ├── __init__.py
-│   ├── asgi.py
-│   ├── settings.py
-│   ├── urls.py
-│   └── wsgi.py
-├── footages/                        # Auto-generated incident clip storage
-│   └── .gitkeep
-├── .env                             # You create this (see Section 6)
-├── .gitignore
-├── manage.py
-└── requirements.txt
-```
+
+    rakshak/
+    ├── main/
+    │   ├── migrations/
+    │   │   ├── 0001_initial.py
+    │   │   └── 0002_incident.py
+    │   ├── templates/
+    │   │   └── main/
+    │   │       ├── dashboard.html       # Multi-camera live dashboard
+    │   │       └── temp.html            # Single-stream test UI
+    │   ├── __init__.py
+    │   ├── admin.py
+    │   ├── apps.py
+    │   ├── models.py
+    │   ├── streams.py                   # Core streaming and detection logic
+    │   ├── tests.py
+    │   ├── urls.py
+    │   └── views.py
+    ├── rakshak/
+    │   ├── __init__.py
+    │   ├── asgi.py
+    │   ├── settings.py
+    │   ├── urls.py
+    │   └── wsgi.py
+    ├── footages/                        # Auto-generated incident clip storage
+    │   └── .gitkeep
+    ├── .env                             # You create this (see Section 6)
+    ├── .gitignore
+    ├── manage.py
+    └── requirements.txt
 
 ---
 
@@ -100,17 +100,16 @@ Rakshak uses three database tables. The schema for each is described below.
 ### Camera
 
 Stores the cameras that Rakshak monitors.
-```
-+---------------+------------------------+------------------------------------------+
-| Field         | Type                   | Notes                                    |
-+---------------+------------------------+------------------------------------------+
-| id            | AutoField (PK)         | Auto-assigned integer primary key        |
-| latitude      | DecimalField(9, 6)     | Range -90 to 90                          |
-| longitude     | DecimalField(9, 6)     | Range -180 to 180                        |
-| live_feed_url | CharField(500)         | YouTube URL of the camera feed           |
-| live          | BooleanField           | true = live stream, false = recorded     |
-+---------------+------------------------+------------------------------------------+
-```
+
+    +---------------+------------------------+------------------------------------------+
+    | Field         | Type                   | Notes                                    |
+    +---------------+------------------------+------------------------------------------+
+    | id            | AutoField (PK)         | Auto-assigned integer primary key        |
+    | latitude      | DecimalField(9, 6)     | Range -90 to 90                          |
+    | longitude     | DecimalField(9, 6)     | Range -180 to 180                        |
+    | live_feed_url | CharField(500)         | YouTube URL of the camera feed           |
+    | live          | BooleanField           | true = live stream, false = recorded     |
+    +---------------+------------------------+------------------------------------------+
 
 Uniqueness constraints enforced at the application level:
 - No two cameras may share the same live_feed_url
@@ -121,18 +120,17 @@ Uniqueness constraints enforced at the application level:
 ### Incident
 
 Stores manually or automatically reported incidents. Used for analytics queries.
-```
-+---------------+------------------------+------------------------------------------+
-| Field         | Type                   | Notes                                    |
-+---------------+------------------------+------------------------------------------+
-| id            | AutoField (PK)         | Auto-assigned integer primary key        |
-| latitude      | DecimalField(9, 6)     | Range -90 to 90                          |
-| longitude     | DecimalField(9, 6)     | Range -180 to 180                        |
-| incident_type | CharField(500)         | e.g. "accident", "fire", "flood"         |
-| description   | CharField(1000)        | Nullable. Auto-generated if not supplied |
-| date_created  | DateTimeField          | Nullable. Must be ISO 8601 on create     |
-+---------------+------------------------+------------------------------------------+
-```
+
+    +---------------+------------------------+------------------------------------------+
+    | Field         | Type                   | Notes                                    |
+    +---------------+------------------------+------------------------------------------+
+    | id            | AutoField (PK)         | Auto-assigned integer primary key        |
+    | latitude      | DecimalField(9, 6)     | Range -90 to 90                          |
+    | longitude     | DecimalField(9, 6)     | Range -180 to 180                        |
+    | incident_type | CharField(500)         | e.g. "accident", "fire", "flood"         |
+    | description   | CharField(1000)        | Nullable. Auto-generated if not supplied |
+    | date_created  | DateTimeField          | Nullable. Must be ISO 8601 on create     |
+    +---------------+------------------------+------------------------------------------+
 
 If description is left blank on creation, it is automatically set to:
 "An incident of type {incident_type} occurred at latitude {lat} and longitude: {lon}."
@@ -144,33 +142,31 @@ If description is left blank on creation, it is automatically set to:
 Created automatically when a camera detects an incident. One record per camera — it is
 updated in place each time a new incident is detected after the cooldown (RECENT_CUTOFF)
 has elapsed.
-```
-+---------------+------------------------+------------------------------------------+
-| Field         | Type                   | Notes                                    |
-+---------------+------------------------+------------------------------------------+
-| id            | AutoField (PK)         | Auto-assigned integer primary key        |
-| camera        | ForeignKey → Camera    | CASCADE on camera delete                 |
-| incident_type | CharField(500)         | Detection type code (see below)          |
-| date_created  | DateTimeField          | Set by the server at detection time      |
-| footage       | CharField(1000)        | Absolute path to the saved .avi clip     |
-+---------------+------------------------+------------------------------------------+
-```
+
+    +---------------+------------------------+------------------------------------------+
+    | Field         | Type                   | Notes                                    |
+    +---------------+------------------------+------------------------------------------+
+    | id            | AutoField (PK)         | Auto-assigned integer primary key        |
+    | camera        | ForeignKey → Camera    | CASCADE on camera delete                 |
+    | incident_type | CharField(500)         | Detection type code (see below)          |
+    | date_created  | DateTimeField          | Set by the server at detection time      |
+    | footage       | CharField(1000)        | Absolute path to the saved .mp4 clip     |
+    +---------------+------------------------+------------------------------------------+
 
 **Incident type codes**
-```
-+------+------------------------------------------+
-| Code | Meaning                                  |
-+------+------------------------------------------+
-| c    | Crash only                               |
-| f    | Fire only                                |
-| s    | Smoke only                               |
-| cf   | Crash and fire                           |
-| cs   | Crash and smoke                          |
-| fs   | Fire and smoke                           |
-| cfs  | Crash, fire, and smoke                   |
-| o    | Other (detected but unclassified)        |
-+------+------------------------------------------+
-```
+
+    +------+------------------------------------------+
+    | Code | Meaning                                  |
+    +------+------------------------------------------+
+    | c    | Crash only                               |
+    | f    | Fire only                                |
+    | s    | Smoke only                               |
+    | cf   | Crash and fire                           |
+    | cs   | Crash and smoke                          |
+    | fs   | Fire and smoke                           |
+    | cfs  | Crash, fire, and smoke                   |
+    | o    | Other (detected but unclassified)        |
+    +------+------------------------------------------+
 
 **Cooldown behaviour**
 
@@ -189,8 +185,9 @@ record is updated in place with the new incident type, timestamp, and footage pa
 
 **Step 2 — Create a virtual environment**
 
-    python -m venv venv 
-    # the first "venv" is part of the command, the second "venv" is simply the name of the folder which can be anything like "venvpath".
+    python -m venv venv
+    # the first "venv" is part of the command, the second "venv" is simply the name of the
+    # folder which can be anything like "venvpath".
 
 Activate it:
 
@@ -252,27 +249,29 @@ Create a file named .env in the root of the project (same directory as manage.py
     touch .env
 
 Paste and fill in the following:
-```
-ACCIDENT_MODEL_URL=https://your-accident-model-ngrok-url.ngrok-free.app
-FIRE_MODEL_URL=https://your-fire-smoke-model-ngrok-url.ngrok-free.app
-TIME_QUANTUM=3
-ACCIDENT_CONF_THRESHOLD=0.35
-RECENT_CUTOFF=6000
-```
+
+    ACCIDENT_MODEL_URL=https://your-accident-model-ngrok-url.ngrok-free.app
+    FIRE_MODEL_URL=https://your-fire-smoke-model-ngrok-url.ngrok-free.app
+    TIME_QUANTUM=3
+    ACCIDENT_CONF_THRESHOLD=0.35
+    RECENT_CUTOFF=6000
+
+**Important:** Environment variables are read once when the Django server starts. If you edit
+the .env file — for example, after restarting a Colab notebook and receiving new ngrok URLs —
+you must stop and restart the Django server for the changes to take effect.
 
 **Variable reference**
-```
-+------------------------+--------+---------+------------------------------------------------+
-| Variable               | Type   | Default | Description                                    |
-+------------------------+--------+---------+------------------------------------------------+
-| ACCIDENT_MODEL_URL     | string | —       | ngrok URL for the accident detection server    |
-| FIRE_MODEL_URL         | string | —       | ngrok URL for the fire/smoke detection server  |
-| TIME_QUANTUM           | int    | 3       | Seconds between sampled frames per camera      |
-| ACCIDENT_CONF_THRESHOLD| float  | 0.35    | Minimum confidence to count an accident hit    |
-| RECENT_CUTOFF          | int    | 6000    | Cooldown in seconds before a new Camera_       |
-|                        |        |         | Incident can be created for the same camera    |
-+------------------------+--------+---------+------------------------------------------------+
-```
+
+    +------------------------+--------+---------+------------------------------------------------+
+    | Variable               | Type   | Default | Description                                    |
+    +------------------------+--------+---------+------------------------------------------------+
+    | ACCIDENT_MODEL_URL     | string | —       | ngrok URL for the accident detection server    |
+    | FIRE_MODEL_URL         | string | —       | ngrok URL for the fire/smoke detection server  |
+    | TIME_QUANTUM           | int    | 3       | Seconds between sampled frames per camera      |
+    | ACCIDENT_CONF_THRESHOLD| float  | 0.35    | Minimum confidence to count an accident hit    |
+    | RECENT_CUTOFF          | int    | 6000    | Cooldown in seconds before a new Camera_       |
+    |                        |        |         | Incident can be created for the same camera    |
+    +------------------------+--------+---------+------------------------------------------------+
 
 ---
 
@@ -307,15 +306,14 @@ the duration of the stream or video, emitting one JSON line per sampled frame. T
 does not create Camera_Incident records — it is for inspecting raw model output only.
 
 **Query parameters**
-```
-+-------------+---------+----------+--------------+--------------------------------------------------+
-| Parameter   | Type    | Required | Default      | Description                                      |
-+-------------+---------+----------+--------------+--------------------------------------------------+
-| url         | string  | Yes      | —            | Full YouTube URL to analyse                      |
-| live        | boolean | No       | true         | true for live streams, false for recorded videos |
-| tq          | integer | No       | TIME_QUANTUM | Seconds between sampled frames                   |
-+-------------+---------+----------+--------------+--------------------------------------------------+
-```
+
+    +-------------+---------+----------+--------------+--------------------------------------------------+
+    | Parameter   | Type    | Required | Default      | Description                                      |
+    +-------------+---------+----------+--------------+--------------------------------------------------+
+    | url         | string  | Yes      | —            | Full YouTube URL to analyse                      |
+    | live        | boolean | No       | true         | true for live streams, false for recorded videos |
+    | tq          | integer | No       | TIME_QUANTUM | Seconds between sampled frames                   |
+    +-------------+---------+----------+--------------+--------------------------------------------------+
 
 **Example request**
 
@@ -403,16 +401,15 @@ does not create Camera_Incident records — it is for inspecting raw model outpu
     {"status": "video_complete", "message": "Video playback complete.", "frame_count": 41}
 
 The position field on each frame event is one of:
-```
-+------------------+----------------------------------------------------------+
-| Value            | Meaning                                                  |
-+------------------+----------------------------------------------------------+
-| first            | First sampled frame of the video                         |
-| mid              | Any frame between first and last                         |
-| last_edge_case   | Final frame of the video                                 |
-| first_and_last   | Video is short enough that only one frame was sampled    |
-+------------------+----------------------------------------------------------+
-```
+
+    +------------------+----------------------------------------------------------+
+    | Value            | Meaning                                                  |
+    +------------------+----------------------------------------------------------+
+    | first            | First sampled frame of the video                         |
+    | mid              | Any frame between first and last                         |
+    | last_edge_case   | Final frame of the video                                 |
+    | first_and_last   | Video is short enough that only one frame was sampled    |
+    +------------------+----------------------------------------------------------+
 
 **Hiccup events** (live streams only) are emitted if the stream momentarily drops:
 
@@ -436,14 +433,13 @@ with the originating camera's metadata. This endpoint also creates and updates C
 records when detections occur.
 
 **Query parameters**
-```
-+-------------+---------+----------+--------------+---------------------------------------------------+
-| Parameter   | Type    | Required | Default      | Description                                       |
-+-------------+---------+----------+--------------+---------------------------------------------------+
-| tq          | integer | No       | TIME_QUANTUM | Seconds between sampled frames per camera         |
-| live        | boolean | No       | true         | Filters cameras by their live field in the DB     |
-+-------------+---------+----------+--------------+---------------------------------------------------+
-```
+
+    +-------------+---------+----------+--------------+---------------------------------------------------+
+    | Parameter   | Type    | Required | Default      | Description                                       |
+    +-------------+---------+----------+--------------+---------------------------------------------------+
+    | tq          | integer | No       | TIME_QUANTUM | Seconds between sampled frames per camera         |
+    | live        | boolean | No       | true         | Filters cameras by their live field in the DB     |
+    +-------------+---------+----------+--------------+---------------------------------------------------+
 
 **Example request**
 
@@ -504,7 +500,7 @@ Full event sequence:
         "created": true,
         "id": 1,
         "incident_type": "c",
-        "footage_path": "C:\\...\\footages\\cam_1_1774472806.avi"
+        "footage_path": "/home/user/rakshak/footages/cam_1_1774472806.mp4"
       },
       "camera_id": 1,
       "camera_latitude": "28.613900",
@@ -513,17 +509,16 @@ Full event sequence:
     }
 
 The camera_incident field is only present on frames where a detection occurred. Its fields:
-```
-+---------------+-----------------------------------------------------------+
-| Field         | Meaning                                                   |
-+---------------+-----------------------------------------------------------+
-| created       | true if a new/updated record was written, false if within |
-|               | the RECENT_CUTOFF cooldown window                         |
-| id            | Database ID of the Camera_Incident record                 |
-| incident_type | Type code (c, f, s, cf, cs, fs, cfs, o)                  |
-| footage_path  | Absolute path to the saved .avi clip on the server        |
-+---------------+-----------------------------------------------------------+
-```
+
+    +---------------+-----------------------------------------------------------+
+    | Field         | Meaning                                                   |
+    +---------------+-----------------------------------------------------------+
+    | created       | true if a new/updated record was written, false if within |
+    |               | the RECENT_CUTOFF cooldown window                         |
+    | id            | Database ID of the Camera_Incident record                 |
+    | incident_type | Type code (c, f, s, cf, cs, fs, cfs, o)                  |
+    | footage_path  | Absolute path to the saved .mp4 clip on the server        |
+    +---------------+-----------------------------------------------------------+
 
 When all cameras have ended:
 
@@ -542,16 +537,15 @@ If no cameras match the query:
 Creates a new camera record.
 
 **Request body fields**
-```
-+---------------+--------+----------+-----------------------------------------------+
-| Field         | Type   | Required | Description                                   |
-+---------------+--------+----------+-----------------------------------------------+
-| latitude      | float  | Yes      | Camera latitude (-90 to 90)                   |
-| longitude     | float  | Yes      | Camera longitude (-180 to 180)                |
-| live_feed_url | string | Yes      | YouTube URL of the camera feed                |
-| live          | bool   | No       | true (default) or false                       |
-+---------------+--------+----------+-----------------------------------------------+
-```
+
+    +---------------+--------+----------+-----------------------------------------------+
+    | Field         | Type   | Required | Description                                   |
+    +---------------+--------+----------+-----------------------------------------------+
+    | latitude      | float  | Yes      | Camera latitude (-90 to 90)                   |
+    | longitude     | float  | Yes      | Camera longitude (-180 to 180)                |
+    | live_feed_url | string | Yes      | YouTube URL of the camera feed                |
+    | live          | bool   | No       | true (default) or false                       |
+    +---------------+--------+----------+-----------------------------------------------+
 
 **Example request**
 
@@ -602,17 +596,16 @@ Deletes all camera records from the database.
 Creates a new incident record.
 
 **Request body fields**
-```
-+---------------+----------+----------+--------------------------------------------------------------+
-| Field         | Type     | Required | Description                                                  |
-+---------------+----------+----------+--------------------------------------------------------------+
-| latitude      | float    | Yes      | Incident latitude (-90 to 90)                                |
-| longitude     | float    | Yes      | Incident longitude (-180 to 180)                             |
-| incident_type | string   | Yes      | Type label, e.g. "accident", "fire", "flood"                 |
-| date_created  | datetime | Yes      | ISO 8601 datetime string                                     |
-| description   | string   | No       | Free-text description. Auto-generated if omitted or empty.   |
-+---------------+----------+----------+--------------------------------------------------------------+
-```
+
+    +---------------+----------+----------+--------------------------------------------------------------+
+    | Field         | Type     | Required | Description                                                  |
+    +---------------+----------+----------+--------------------------------------------------------------+
+    | latitude      | float    | Yes      | Incident latitude (-90 to 90)                                |
+    | longitude     | float    | Yes      | Incident longitude (-180 to 180)                             |
+    | incident_type | string   | Yes      | Type label, e.g. "accident", "fire", "flood"                 |
+    | date_created  | datetime | Yes      | ISO 8601 datetime string                                     |
+    | description   | string   | No       | Free-text description. Auto-generated if omitted or empty.   |
+    +---------------+----------+----------+--------------------------------------------------------------+
 
 **Example request**
 
@@ -648,15 +641,14 @@ pre-filter at the database level, followed by a Haversine calculation in Python 
 only incidents within the true circular radius.
 
 **Query parameters**
-```
-+-------------+-------+----------+-----------------------------------------------+
-| Parameter   | Type  | Required | Description                                   |
-+-------------+-------+----------+-----------------------------------------------+
-| latitude    | float | Yes      | Center point latitude (-90 to 90)             |
-| longitude   | float | Yes      | Center point longitude (-180 to 180)          |
-| distance_km | float | Yes      | Search radius in kilometres (must be > 0)     |
-+-------------+-------+----------+-----------------------------------------------+
-```
+
+    +-------------+-------+----------+-----------------------------------------------+
+    | Parameter   | Type  | Required | Description                                   |
+    +-------------+-------+----------+-----------------------------------------------+
+    | latitude    | float | Yes      | Center point latitude (-90 to 90)             |
+    | longitude   | float | Yes      | Center point longitude (-180 to 180)          |
+    | distance_km | float | Yes      | Search radius in kilometres (must be > 0)     |
+    +-------------+-------+----------+-----------------------------------------------+
 
 **Example request**
 
@@ -714,6 +706,191 @@ Deletes all incident records from the database.
 
 ---
 
+### Retrieval Endpoints
+
+**GET /camera/get-all/**
+
+Returns all camera records in the database.
+
+**Example request**
+
+    curl "http://127.0.0.1:8000/camera/get-all/"
+
+**Success response (HTTP 200)**
+
+    {
+      "success": true,
+      "cameras": [
+        {
+          "id": 1,
+          "latitude": "28.613900",
+          "longitude": "77.209000",
+          "live_feed_url": "https://www.youtube.com/watch?v=XXXX",
+          "live": true
+        },
+        {
+          "id": 2,
+          "latitude": "19.076000",
+          "longitude": "72.877400",
+          "live_feed_url": "https://www.youtube.com/watch?v=YYYY",
+          "live": false
+        }
+      ]
+    }
+
+If no cameras exist, the cameras array is returned empty:
+
+    {"success": true, "cameras": []}
+
+---
+
+**GET /incident/get-all/**
+
+Returns all incident records in the database.
+
+**Example request**
+
+    curl "http://127.0.0.1:8000/incident/get-all/"
+
+**Success response (HTTP 200)**
+
+    {
+      "success": true,
+      "incidents": [
+        {
+          "id": 1,
+          "latitude": "28.613900",
+          "longitude": "77.209000",
+          "incident_type": "fire",
+          "description": "Fire spotted near highway",
+          "date_created": "2026-03-24T14:30:00+00:00"
+        },
+        {
+          "id": 2,
+          "latitude": "28.620100",
+          "longitude": "77.198400",
+          "incident_type": "accident",
+          "description": "An incident of type accident occurred at latitude 28.6201 and longitude: 77.1984.",
+          "date_created": "2026-03-24T15:45:00+00:00"
+        }
+      ]
+    }
+
+If no incidents exist, the incidents array is returned empty:
+
+    {"success": true, "incidents": []}
+
+---
+
+**GET /camera-incident/get-all/**
+
+Returns all Camera_Incident records in the database, each with the full details of its
+associated camera nested inline.
+
+**Example request**
+
+    curl "http://127.0.0.1:8000/camera-incident/get-all/"
+
+**Success response (HTTP 200)**
+
+    {
+      "success": true,
+      "camera_incidents": [
+        {
+          "id": 1,
+          "incident_type": "cf",
+          "date_created": "2026-03-24T14:32:11+00:00",
+          "footage": "/home/user/rakshak/footages/cam_1_1774472806.mp4",
+          "camera_details": {
+            "id": 1,
+            "latitude": "28.613900",
+            "longitude": "77.209000",
+            "live_feed_url": "https://www.youtube.com/watch?v=XXXX",
+            "live": true
+          }
+        },
+        {
+          "id": 2,
+          "incident_type": "s",
+          "date_created": "2026-03-24T15:10:44+00:00",
+          "footage": "/home/user/rakshak/footages/cam_2_1774475444.mp4",
+          "camera_details": {
+            "id": 2,
+            "latitude": "19.076000",
+            "longitude": "72.877400",
+            "live_feed_url": "https://www.youtube.com/watch?v=YYYY",
+            "live": true
+          }
+        }
+      ]
+    }
+
+If no camera incidents exist, the camera_incidents array is returned empty:
+
+    {"success": true, "camera_incidents": []}
+
+---
+
+**GET /camera/get-one/**
+
+Returns a single camera matched by its exact coordinates, along with all Camera_Incident
+records linked to that camera, sorted from newest to oldest.
+
+**Query parameters**
+
+    +-------------+-------+----------+----------------------------------------------------+
+    | Parameter   | Type  | Required | Description                                        |
+    +-------------+-------+----------+----------------------------------------------------+
+    | latitude    | float | Yes      | Exact latitude of the camera (up to 6 dp)          |
+    | longitude   | float | Yes      | Exact longitude of the camera (up to 6 dp)         |
+    +-------------+-------+----------+----------------------------------------------------+
+
+**Example request**
+
+    curl "http://127.0.0.1:8000/camera/get-one/?latitude=28.6139&longitude=77.2090"
+
+**Success response (HTTP 200)**
+
+    {
+      "success": true,
+      "camera": {
+        "id": 1,
+        "latitude": "28.613900",
+        "longitude": "77.209000",
+        "live_feed_url": "https://www.youtube.com/watch?v=XXXX",
+        "live": true
+      },
+      "camera_incidents": [
+        {
+          "id": 3,
+          "incident_type": "c",
+          "date_created": "2026-03-26T09:15:02+00:00",
+          "footage": "/home/user/rakshak/footages/cam_1_1774561302.mp4"
+        },
+        {
+          "id": 1,
+          "incident_type": "cf",
+          "date_created": "2026-03-24T14:32:11+00:00",
+          "footage": "/home/user/rakshak/footages/cam_1_1774472806.mp4"
+        }
+      ]
+    }
+
+If the camera has no incidents, camera_incidents is returned as an empty array:
+
+    {
+      "success": true,
+      "camera": { ... },
+      "camera_incidents": []
+    }
+
+**Error responses**
+
+- HTTP 400 — latitude or longitude parameter is missing or not a valid decimal number
+- HTTP 404 — No camera found at the given coordinates
+
+---
+
 ### Utility Endpoints
 
 **POST /delete-all-camera-incidents/**
@@ -759,15 +936,14 @@ development and testing only — remove this endpoint before deploying to produc
 Deletes a single Camera, Incident, or Camera_Incident record matched by its coordinates.
 
 **Request body fields**
-```
-+------------+--------+----------+----------------------------------------------------------+
-| Field      | Type   | Required | Description                                              |
-+------------+--------+----------+----------------------------------------------------------+
-| latitude   | float  | Yes      | Exact latitude to match (up to 6 decimal places)         |
-| longitude  | float  | Yes      | Exact longitude to match (up to 6 decimal places)        |
-| to_delete  | string | Yes      | One of: camera, incident, camera_incident                |
-+------------+--------+----------+----------------------------------------------------------+
-```
+
+    +------------+--------+----------+----------------------------------------------------------+
+    | Field      | Type   | Required | Description                                              |
+    +------------+--------+----------+----------------------------------------------------------+
+    | latitude   | float  | Yes      | Exact latitude to match (up to 6 decimal places)         |
+    | longitude  | float  | Yes      | Exact longitude to match (up to 6 decimal places)        |
+    | to_delete  | string | Yes      | One of: camera, incident, camera_incident                |
+    +------------+--------+----------+----------------------------------------------------------+
 
 **Example request**
 
