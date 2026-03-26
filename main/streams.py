@@ -1,4 +1,3 @@
-#new 
 import yt_dlp
 import cv2
 import numpy as np
@@ -13,7 +12,7 @@ import datetime
 from concurrent.futures import ThreadPoolExecutor
 
 ACCIDENT_CONF_THRESHOLD = float(os.getenv("ACCIDENT_CONF_THRESHOLD", 0.35))
-RECENT_CUTOFF           = int(os.getenv("RECENT_CUTOFF", 6000))
+RECENT_CUTOFF           = int(os.getenv("RECENT_CUTOFF", 300))
 
 def _get_footages_dir():
     from django.conf import settings
@@ -229,7 +228,7 @@ def _save_snippet_live(session, incident_wall_time, footage_path):
     os.makedirs(os.path.dirname(footage_path), exist_ok=True)
     writer = cv2.VideoWriter(
         footage_path,
-        cv2.VideoWriter_fourcc(*"XVID"),
+        cv2.VideoWriter_fourcc(*"mp4v"),
         estimated_fps,
         (w, h)
     )
@@ -263,7 +262,7 @@ def _save_snippet_non_live(stream_url, incident_video_ts, footage_path):
     os.makedirs(os.path.dirname(footage_path), exist_ok=True)
     writer = cv2.VideoWriter(
         footage_path,
-        cv2.VideoWriter_fourcc(*"XVID"),
+        cv2.VideoWriter_fourcc(*"mp4v"),
         fps,
         (w, h)
     )
@@ -310,7 +309,7 @@ def _handle_camera_incident(camera_id, incident_type, session_or_url, incident_t
     footages_dir     = _get_footages_dir()
     os.makedirs(footages_dir, exist_ok=True)
     incident_wall_time = time.time()
-    footage_filename = f"cam_{camera_id}_{int(incident_wall_time)}.avi"
+    footage_filename = f"cam_{camera_id}_{int(incident_wall_time)}.mp4"
     footage_path     = os.path.join(footages_dir, footage_filename)
 
     previous = Camera_Incident.objects.filter(camera=cam_obj).first()

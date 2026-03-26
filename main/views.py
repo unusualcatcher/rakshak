@@ -467,3 +467,115 @@ def delete_all_camera_incidents(request):
             "success": False,
             "error": f"An unexpected error occurred: {str(e)}"
         }, status=500)
+
+@require_GET
+def get_all_cameras(request):
+    cameras = Camera.objects.all()
+    data = [
+        {
+            "id": cam.id,
+            "latitude": str(cam.latitude),
+            "longitude": str(cam.longitude),
+            "live_feed_url": cam.live_feed_url,
+            "live": cam.live
+        }
+        for cam in cameras
+    ]
+    return JsonResponse({"success": True, "cameras": data}, status=200)
+
+
+@require_GET
+def get_all_incidents(request):
+    incidents = Incident.objects.all()
+    data = [
+        {
+            "id": incident.id,
+            "latitude": str(incident.latitude),
+            "longitude": str(incident.longitude),
+            "incident_type": incident.incident_type,
+            "description": incident.description,
+            "date_created": incident.date_created.isoformat() if incident.date_created else None
+        }
+        for incident in incidents
+    ]
+    return JsonResponse({"success": True, "incidents": data}, status=200)
+
+
+@require_GET
+def get_all_camera_incidents(request):
+    # select_related optimizes the database query to fetch camera data simultaneously
+    camera_incidents = Camera_Incident.objects.select_related('camera').all()
+    data = [
+        {
+            "id": ci.id,
+            "incident_type": ci.incident_type,
+            "date_created": ci.date_created.isoformat() if ci.date_created else None,
+            "footage": ci.footage,
+            "camera_details": {
+                "id": ci.camera.id,
+                "latitude": str(ci.camera.latitude),
+                "longitude": str(ci.camera.longitude),
+                "live_feed_url": ci.camera.live_feed_url,
+                "live": ci.camera.live
+            }
+        }
+        for ci in camera_incidents
+    ]
+    return JsonResponse({"success": True, "camera_incidents": data}, status=200)
+
+
+@require_GET
+def get_one_by_coordinates(request):
+    latitude_raw  = request.GET.get("latitude", "").strip()
+    longitude_raw = request.GET.get("longitude", "").strip()
+
+    if not latitude_raw or not longitude_raw:
+        return JsonResponse({
+            "success": False,
+            "error": "latitude and longitude are required."
+        }, status=400)
+
+    try:
+        latitude = Decimal(latitude_raw)
+        longitude = Decimal(longitude_raw)
+    except (InvalidOperation, TypeError):
+        return JsonResponse({
+            "success": False,
+            "error": "latitude and longitude must be valid decimal numbers."
+        }, status=400)
+
+    camera = Camera.objects.filter(latitude=latitude, longitude=longitude).first()
+    
+    if not camera:
+        return JsonResponse({
+            "success": False,
+            "message": "No camera found at these coordinates.",
+            "camera": None
+        }, status=404)
+
+    # Fetch all incidents linked to this specific camera, sorted by newest first
+    incidents = Camera_Incident.objects.filter(camera=camera).order_by('-date_created')
+
+    camera_data = {
+        "id": camera.id,
+        "latitude": str(camera.latitude),
+        "longitude": str(camera.longitude),
+        "live_feed_url": camera.live_feed_url,
+        "live": camera.live
+    }
+
+    incident_data = [
+        {
+            "id": ci.id,
+            "incident_type": ci.incident_type,
+            "date_created": ci.date_created.isoformat() if ci.date_created else None,
+            "footage": ci.footage
+        }
+        for ci in incidents
+    ]
+
+    return JsonResponse({
+        "success": True,
+        "camera": camera_data,
+        "camera_incidents": incident_data
+    }, status=200)
